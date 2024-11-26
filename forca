@@ -1,0 +1,129 @@
+<?php
+class HangmanGame {
+    private $wordList = [
+        'php', 'javascript', 'python', 'programacao', 
+        'computador', 'desenvolvimento', 'sistema'
+    ];
+    private $selectedWord;
+    private $guessedLetters = [];
+    private $maxAttempts = 6;
+    private $currentAttempts = 0;
+
+    public function __construct() {
+        // Seleciona uma palavra aleatória
+        $this->selectedWord = strtolower($this->wordList[array_rand($this->wordList)]);
+    }
+
+    public function startGame() {
+        return [
+            'wordLength' => strlen($this->selectedWord),
+            'maxAttempts' => $this->maxAttempts
+        ];
+    }
+
+    public function makeGuess($letter) {
+        $letter = strtolower($letter);
+
+        // Verifica se a letra já foi tentada
+        if (in_array($letter, $this->guessedLetters)) {
+            return [
+                'status' => 'repeated',
+                'message' => 'Esta letra já foi tentada'
+            ];
+        }
+
+        // Adiciona a letra às tentativas
+        $this->guessedLetters[] = $letter;
+
+        // Verifica se a letra está na palavra
+        if (strpos($this->selectedWord, $letter) !== false) {
+            return $this->checkWordProgress($letter);
+        } else {
+            $this->currentAttempts++;
+            return $this->checkGameStatus($letter);
+        }
+    }
+
+    private function checkWordProgress($letter) {
+        $wordProgress = str_split($this->selectedWord);
+        $revealedPositions = [];
+
+        foreach ($wordProgress as $index => $char) {
+            if ($char === $letter) {
+                $revealedPositions[] = $index;
+            }
+        }
+
+        return [
+            'status' => 'correct',
+            'positions' => $revealedPositions,
+            'letter' => $letter
+        ];
+    }
+
+    private function checkGameStatus($letter) {
+        if ($this->currentAttempts >= $this->maxAttempts) {
+            return [
+                'status' => 'game_over',
+                'word' => $this->selectedWord
+            ];
+        }
+
+        return [
+            'status' => 'incorrect',
+            'letter' => $letter,
+            'attemptsLeft' => $this->maxAttempts - $this->currentAttempts
+        ];
+    }
+
+    public function checkWin() {
+        $uniqueWordLetters = array_unique(str_split($this->selectedWord));
+        $correctGuesses = array_intersect($this->guessedLetters, $uniqueWordLetters);
+
+        return count($correctGuesses) === count($uniqueWordLetters);
+    }
+
+    public function getGameState() {
+        $maskedWord = '';
+        for ($i = 0; $i < strlen($this->selectedWord); $i++) {
+            $maskedWord .= in_array($this->selectedWord[$i], $this->guessedLetters) 
+                ? $this->selectedWord[$i] 
+                : '_';
+        }
+
+        return [
+            'maskedWord' => $maskedWord,
+            'guessedLetters' => $this->guessedLetters,
+            'attemptsLeft' => $this->maxAttempts - $this->currentAttempts
+        ];
+    }
+}
+
+// Exemplo de uso
+header('Content-Type: application/json');
+
+$game = new HangmanGame();
+
+// Lida com diferentes ações do jogo via POST
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = $_POST['action'] ?? '';
+
+    switch ($action) {
+        case 'start':
+            echo json_encode($game->startGame());
+            break;
+
+        case 'guess':
+            $letter = $_POST['letter'] ?? '';
+            echo json_encode($game->makeGuess($letter));
+            break;
+
+        case 'state':
+            echo json_encode($game->getGameState());
+            break;
+
+        default:
+            echo json_encode(['error' => 'Ação inválida']);
+    }
+}
+?>
